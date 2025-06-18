@@ -1,3 +1,5 @@
+"use client"
+
 import * as React from "react"
 
 import type {
@@ -6,7 +8,7 @@ import type {
 } from "@/components/ui/toast"
 
 const TOAST_LIMIT = 5
-const TOAST_REMOVE_DELAY = 5000
+const TOAST_REMOVE_DELAY = 1000000
 
 type ToasterToast = ToastProps & {
   id: string
@@ -42,11 +44,11 @@ type Action =
     }
   | {
       type: ActionType["DISMISS_TOAST"]
-      toastId?: ToasterToast["id"]
+      toastId?: string
     }
   | {
       type: ActionType["REMOVE_TOAST"]
-      toastId?: ToasterToast["id"]
+      toastId?: string
     }
 
 interface State {
@@ -74,30 +76,13 @@ const reducer = (state: State, action: Action): State => {
     case actionTypes.DISMISS_TOAST: {
       const { toastId } = action
 
-      // ! Side effects
+      // ! Side effects ! - This could be extracted into a dismissToast() action,
+      // but I'll keep it here for simplicity
       if (toastId) {
-        toastTimeouts.set(
-          toastId,
-          setTimeout(() => {
-            toastTimeouts.delete(toastId)
-            dispatch({
-              type: actionTypes.REMOVE_TOAST,
-              toastId,
-            })
-          }, TOAST_REMOVE_DELAY)
-        )
+        setToastTimeout(toastId)
       } else {
-        state.toasts.forEach((toast) => {
-          toastTimeouts.set(
-            toast.id,
-            setTimeout(() => {
-              toastTimeouts.delete(toast.id)
-              dispatch({
-                type: actionTypes.REMOVE_TOAST,
-                toastId: toast.id,
-              })
-            }, TOAST_REMOVE_DELAY)
-          )
+        state.toasts.forEach((t) => {
+          setToastTimeout(t.id)
         })
       }
 
@@ -124,8 +109,6 @@ const reducer = (state: State, action: Action): State => {
         ...state,
         toasts: state.toasts.filter((t) => t.id !== action.toastId),
       }
-    default:
-      return state
   }
 }
 
@@ -165,13 +148,26 @@ function toast({ ...props }: Toast) {
   })
 
   return {
-    id,
+    id: id,
     dismiss,
     update,
   }
 }
 
-function useToast() {
+function setToastTimeout(toastId: string) {
+  if (toastTimeouts.has(toastId)) {
+    clearTimeout(toastTimeouts.get(toastId))
+  }
+
+  const timeout = setTimeout(() => {
+    toastTimeouts.delete(toastId)
+    dispatch({ type: actionTypes.REMOVE_TOAST, toastId })
+  }, TOAST_REMOVE_DELAY)
+
+  toastTimeouts.set(toastId, timeout)
+}
+
+export function useToast() {
   const [state, setState] = React.useState<State>(memoryState)
 
   React.useEffect(() => {
@@ -190,5 +186,3 @@ function useToast() {
     dismiss: (toastId?: string) => dispatch({ type: actionTypes.DISMISS_TOAST, toastId }),
   }
 }
-
-export { useToast, toast }
